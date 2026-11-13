@@ -14,82 +14,105 @@
     <div class="crt-overlay" id="crt-overlay"></div>
 
     <main class="container">
-        <!-- هدر و دکمه صدا -->
+        <!-- هدر و ابزارها -->
         <header>
-            <button id="sound-toggle" class="icon-btn" title="قطع/وصل صدا">🔊</button>
+            <div class="header-tools">
+                <button id="lang-toggle" class="icon-btn" title="تغییر زبان / Change Language">🌐 EN</button>
+                <button id="sound-toggle" class="icon-btn" title="قطع/وصل صدا">🔊</button>
+            </div>
             <h1>NOVA</h1>
-            <div class="subtitle">ULTIMATE EDITION</div>
+            <div class="subtitle" data-fa="نسخه نهایی" data-en="ULTIMATE EDITION">نسخه نهایی</div>
         </header>
 
-        <!-- کادر آپلود و وب‌کم -->
+        <!-- بخش آپلود و دوربین -->
         <div id="upload-section">
             <label for="file-upload" class="upload-area" id="drop-zone">
-                <p>عکس را انتخاب کنید یا با دوربین بگیرید</p>
+                <p data-fa="عکس را انتخاب کنید یا با دوربین بگیرید" data-en="Choose a photo or take one with the camera">عکس را انتخاب کنید یا با دوربین بگیرید</p>
                 <p class="upload-icon">🖼️</p>
             </label>
             <input id="file-upload" type="file" accept="image/*">
-            <button class="btn secondary" id="webcam-btn" type="button">📷 استفاده از دوربین</button>
+            <button class="btn secondary" id="webcam-btn" type="button" data-fa="📷 استفاده از دوربین" data-en="📷 Use Camera">📷 استفاده از دوربین</button>
             <video id="webcam-video" autoplay style="display:none;"></video>
         </div>
 
-        <!-- تنظیمات و انتخاب مود -->
+        <!-- تنظیمات و مودها -->
         <div id="settings-section">
-            <div class="mode-title">حالت خلق تصویر:</div>
+            <div class="mode-title" data-fa="حالت خلق تصویر:" data-en="Creation Mode:">حالت خلق تصویر:</div>
+            
             <div class="modes-grid">
-                <button class="mode-btn active" data-mode="spectrum"><span class="icon">🎨</span> لایه‌های رنگی</button>
-                <button class="mode-btn" data-mode="thermal"><span class="icon">🔥</span> دید حرارتی</button>
-                <button class="mode-btn" data-mode="luminous"><span class="icon">🌗</span> عمق نور</button>
-                <button class="mode-btn" data-mode="clusters"><span class="icon">🌌</span> خوشه‌های کیهانی</button>
-                <button class="mode-btn" data-mode="rgbsplit"><span class="icon">🎛️</span> تفکیک کانال</button>
-                <button class="mode-btn" data-mode="edgefill"><span class="icon">✏️</span> از خط تا رنگ</button>
-                <button class="mode-btn" data-mode="radar"><span class="icon">🌈</span> رادار رنگی</button>
-                <button class="mode-btn hidden-mode" data-mode="secret" id="secret-mode-btn" style="display:none;"><span class="icon">👁️</span> حالت مخفی</button>
+                <button class="mode-btn active" data-mode="spectrum">
+                    <span class="icon">🎨</span> <span data-fa="لایه‌های رنگی" data-en="Spectrum">لایه‌های رنگی</span>
+                </button>
+                <button class="mode-btn" data-mode="thermal">
+                    <span class="icon">🔥</span> <span data-fa="دید حرارتی" data-en="Thermal">دید حرارتی</span>
+                </button>
+                <button class="mode-btn" data-mode="luminous">
+                    <span class="icon">🌗</span> <span data-fa="عمق نور" data-en="Luminous">عمق نور</span>
+                </button>
+                <button class="mode-btn" data-mode="clusters">
+                    <span class="icon">🌌</span> <span data-fa="خوشه‌های کیهانی" data-en="Clusters">خوشه‌های کیهانی</span>
+                </button>
+                <button class="mode-btn" data-mode="rgbsplit">
+                    <span class="icon">🎛️</span> <span data-fa="تفکیک کانال" data-en="RGB Split">تفکیک کانال</span>
+                </button>
+                <button class="mode-btn" data-mode="edgefill">
+                    <span class="icon">✏️</span> <span data-fa="از خط تا رنگ" data-en="Edge & Fill">از خط تا رنگ</span>
+                </button>
+                <button class="mode-btn" data-mode="radar">
+                    <span class="icon">🌈</span> <span data-fa="رادار رنگی" data-en="Radar">رادار رنگی</span>
+                </button>
+                <button class="mode-btn" data-mode="matrix">
+                    <span class="icon">💻</span> <span data-fa="ماتریکس (0/1)" data-en="Matrix (0/1)">ماتریکس (0/1)</span>
+                </button>
+                <button class="mode-btn hidden-mode" data-mode="secret" id="secret-mode-btn" style="display:none;">
+                    <span class="icon">👁️</span> <span data-fa="حالت مخفی" data-en="Secret Mode">حالت مخفی</span>
+                </button>
             </div>
 
             <div class="slider-group">
-                <label for="speed-slider">سرعت انیمیشن: <span id="speed-val">عادی</span></label>
+                <label for="speed-slider"><span data-fa="سرعت انیمیشن:" data-en="Animation Speed:">سرعت انیمیشن:</span> <span id="speed-val" data-fa="عادی" data-en="Normal">عادی</span></label>
                 <input type="range" id="speed-slider" min="1" max="3" value="2" step="1">
             </div>
 
             <div class="toggle-group">
-                <label><input type="checkbox" id="autobg-toggle"> حذف پس‌زمینه تیره</label>
-                <label><input type="checkbox" id="crt-toggle"> افکت خطوط اسکن (CRT)</label>
+                <label><input type="checkbox" id="autobg-toggle"> <span data-fa="حذف پس‌زمینه" data-en="Remove BG">حذف پس‌زمینه</span></label>
+                <label><input type="checkbox" id="crt-toggle"> <span data-fa="افکت CRT" data-en="CRT Effect">افکت CRT</span></label>
             </div>
 
             <div class="action-buttons">
-                <button class="btn" id="start-btn">شروع خلق</button>
-                <button class="btn secondary" id="random-btn" title="انتخاب تصادفی مود">🎲 شانس</button>
+                <button class="btn" id="start-btn" data-fa="شروع خلق" data-en="Start Creation">شروع خلق</button>
+                <button class="btn secondary" id="random-btn" title="Random Mode">🎲</button>
             </div>
         </div>
 
         <!-- نوار پیشرفت -->
         <div class="progress-container" id="progress-container">
             <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
-            <div class="progress-text" id="progress-text">آماده‌سازی...</div>
+            <div class="progress-text" id="progress-text" data-fa="آماده‌سازی..." data-en="Preparing...">آماده‌سازی...</div>
         </div>
 
-        <!-- بوم نقاشی و نتیجه -->
+        <!-- بوم نقاشی -->
         <div id="canvas-wrapper">
             <canvas id="draw-canvas"></canvas>
             <canvas id="original-canvas" style="display:none;"></canvas>
             <div class="recording-pulse" id="rec-pulse"></div>
-            <button class="icon-btn compare-btn" id="compare-btn" title="مقایسه">👁️</button>
+            <button class="icon-btn compare-btn" id="compare-btn" title="Compare">👁️</button>
         </div>
 
-        <!-- پالت رنگی و خروجی‌ها -->
+        <!-- نتیجه و خروجی -->
         <div id="result-section">
             <div class="color-palette" id="color-palette"></div>
             
             <div class="export-grid">
-                <a href="#" id="download-video" class="btn" download="nova-art.webm">💾 ویدیو</a>
-                <a href="#" id="download-png" class="btn secondary" download="nova-image.png">🖼️ عکس</a>
-                <button id="share-card-btn" class="btn secondary">📱 کارت اشتراک</button>
+                <a href="#" id="download-video" class="btn" download="nova-art.webm" data-fa="💾 ویدیو" data-en="💾 Video">💾 ویدیو</a>
+                <a href="#" id="download-png" class="btn secondary" download="nova-image.png" data-fa="🖼️ عکس" data-en="🖼️ Image">🖼️ عکس</a>
+                <button id="share-card-btn" class="btn secondary" data-fa="📱 کارت اشتراک" data-en="📱 Share Card">📱 کارت اشتراک</button>
             </div>
         </div>
 
         <!-- گالری محلی -->
         <div id="gallery-section" style="display:none;">
-            <div class="mode-title">گالری شاهکارهای شما:</div>
+            <div class="mode-title" data-fa="گالری شاهکارهای شما:" data-en="Your Masterpieces:">گالری شاهکارهای شما:</div>
             <div class="gallery-grid" id="gallery-grid"></div>
         </div>
     </main>
