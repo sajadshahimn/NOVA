@@ -3,81 +3,95 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta name="description" content="NOVA - خاستگاه پیکسل‌های نئونی | ۷ حالت خلق تصویر">
+    <meta name="description" content="NOVA Ultimate - خاستگاه پیکسل‌های نئونی">
     <meta name="theme-color" content="#050508">
-    <title>🌌 NOVA | خاستگاه پیکسل‌ها</title>
+    <title>🌌 NOVA | Ultimate Edition</title>
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 
-    <!-- ستاره نئونی پس‌زمینه -->
     <div class="bg-star" aria-hidden="true"></div>
+    <div class="crt-overlay" id="crt-overlay"></div>
 
     <main class="container">
-        <h1>NOVA</h1>
-        <div class="subtitle">NEON PIXEL GENESIS</div>
-        
-        <!-- کادر آپلود عکس -->
-        <label for="file-upload" class="upload-area" id="drop-zone">
-            <p>برای انتخاب عکس کلیک کنید</p>
-            <p class="upload-icon">🖼️</p>
-        </label>
-        <input id="file-upload" type="file" accept="image/*">
+        <!-- هدر و دکمه صدا -->
+        <header>
+            <button id="sound-toggle" class="icon-btn" title="قطع/وصل صدا">🔊</button>
+            <h1>NOVA</h1>
+            <div class="subtitle">ULTIMATE EDITION</div>
+        </header>
 
-        <!-- انتخاب مود -->
-        <div id="mode-selection">
-            <div class="mode-title">حالت خلق تصویر را انتخاب کنید:</div>
-            <div class="modes-grid">
-                <button class="mode-btn active" data-mode="spectrum" type="button">
-                    <span class="icon">🎨</span>
-                    <span>لایه‌های رنگی</span>
-                </button>
-                <button class="mode-btn" data-mode="thermal" type="button">
-                    <span class="icon">🔥</span>
-                    <span>دید حرارتی</span>
-                </button>
-                <button class="mode-btn" data-mode="luminous" type="button">
-                    <span class="icon">🌗</span>
-                    <span>عمق نور</span>
-                </button>
-                <button class="mode-btn" data-mode="clusters" type="button">
-                    <span class="icon">🌌</span>
-                    <span>خوشه‌های کیهانی</span>
-                </button>
-                <button class="mode-btn" data-mode="rgbsplit" type="button">
-                    <span class="icon">🎛️</span>
-                    <span>تفکیک کانال</span>
-                </button>
-                <button class="mode-btn" data-mode="edgefill" type="button">
-                    <span class="icon">✏️</span>
-                    <span>از خط تا رنگ</span>
-                </button>
-                <button class="mode-btn" data-mode="radar" type="button">
-                    <span class="icon">🌈</span>
-                    <span>رادار رنگی</span>
-                </button>
-            </div>
+        <!-- کادر آپلود و وب‌کم -->
+        <div id="upload-section">
+            <label for="file-upload" class="upload-area" id="drop-zone">
+                <p>عکس را انتخاب کنید یا با دوربین بگیرید</p>
+                <p class="upload-icon">🖼️</p>
+            </label>
+            <input id="file-upload" type="file" accept="image/*">
+            <button class="btn secondary" id="webcam-btn" type="button">📷 استفاده از دوربین</button>
+            <video id="webcam-video" autoplay style="display:none;"></video>
         </div>
 
-        <!-- دکمه شروع -->
-        <button class="btn" id="start-btn" style="display: none;" type="button">شروع خلق</button>
+        <!-- تنظیمات و انتخاب مود -->
+        <div id="settings-section">
+            <div class="mode-title">حالت خلق تصویر:</div>
+            <div class="modes-grid">
+                <button class="mode-btn active" data-mode="spectrum"><span class="icon">🎨</span> لایه‌های رنگی</button>
+                <button class="mode-btn" data-mode="thermal"><span class="icon">🔥</span> دید حرارتی</button>
+                <button class="mode-btn" data-mode="luminous"><span class="icon">🌗</span> عمق نور</button>
+                <button class="mode-btn" data-mode="clusters"><span class="icon">🌌</span> خوشه‌های کیهانی</button>
+                <button class="mode-btn" data-mode="rgbsplit"><span class="icon">🎛️</span> تفکیک کانال</button>
+                <button class="mode-btn" data-mode="edgefill"><span class="icon">✏️</span> از خط تا رنگ</button>
+                <button class="mode-btn" data-mode="radar"><span class="icon">🌈</span> رادار رنگی</button>
+                <button class="mode-btn hidden-mode" data-mode="secret" id="secret-mode-btn" style="display:none;"><span class="icon">👁️</span> حالت مخفی</button>
+            </div>
+
+            <div class="slider-group">
+                <label for="speed-slider">سرعت انیمیشن: <span id="speed-val">عادی</span></label>
+                <input type="range" id="speed-slider" min="1" max="3" value="2" step="1">
+            </div>
+
+            <div class="toggle-group">
+                <label><input type="checkbox" id="autobg-toggle"> حذف پس‌زمینه تیره</label>
+                <label><input type="checkbox" id="crt-toggle"> افکت خطوط اسکن (CRT)</label>
+            </div>
+
+            <div class="action-buttons">
+                <button class="btn" id="start-btn">شروع خلق</button>
+                <button class="btn secondary" id="random-btn" title="انتخاب تصادفی مود">🎲 شانس</button>
+            </div>
+        </div>
 
         <!-- نوار پیشرفت -->
         <div class="progress-container" id="progress-container">
-            <div class="progress-bar">
-                <div class="progress-fill" id="progress-fill"></div>
-            </div>
+            <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
             <div class="progress-text" id="progress-text">آماده‌سازی...</div>
         </div>
 
-        <!-- بوم نقاشی -->
+        <!-- بوم نقاشی و نتیجه -->
         <div id="canvas-wrapper">
             <canvas id="draw-canvas"></canvas>
+            <canvas id="original-canvas" style="display:none;"></canvas>
             <div class="recording-pulse" id="rec-pulse"></div>
+            <button class="icon-btn compare-btn" id="compare-btn" title="مقایسه">👁️</button>
         </div>
 
-        <!-- دکمه دانلود -->
-        <a href="#" id="download-link" class="btn" download="nova-art.webm">💾 دانلود ویدیو</a>
+        <!-- پالت رنگی و خروجی‌ها -->
+        <div id="result-section">
+            <div class="color-palette" id="color-palette"></div>
+            
+            <div class="export-grid">
+                <a href="#" id="download-video" class="btn" download="nova-art.webm">💾 ویدیو</a>
+                <a href="#" id="download-png" class="btn secondary" download="nova-image.png">🖼️ عکس</a>
+                <button id="share-card-btn" class="btn secondary">📱 کارت اشتراک</button>
+            </div>
+        </div>
+
+        <!-- گالری محلی -->
+        <div id="gallery-section" style="display:none;">
+            <div class="mode-title">گالری شاهکارهای شما:</div>
+            <div class="gallery-grid" id="gallery-grid"></div>
+        </div>
     </main>
 
     <script src="js/app.js"></script>
