@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400" width="100%" height="100%">
+  <defs>
+    <!-- فیلتر درخشش نئونی -->
+    <filter id="neon-glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="6" result="blur1" />
+      <feGaussianBlur stdDeviation="15" result="blur2" />
+      <feMerge>
+        <feMergeNode in="blur2" />
+        <feMergeNode in="blur1" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+    
+    <!-- گرادیانت رنگ متن -->
+    <linearGradient id="textGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#00f0ff" />
+      <stop offset="50%" stop-color="#8a2be2" />
+      <stop offset="100%" stop-color="#00f0ff" />
+    </linearGradient>
+
+    <!-- گرادیانت ستاره -->
+    <radialGradient id="starGrad" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="100%" stop-color="#00f0ff" />
+    </radialGradient>
+  </defs>
+
+  <!-- پس‌زمینه مشکی -->
+  <rect width="800" height="400" fill="#050508" rx="20" />
+
+  <!-- ستاره مرکزی -->
+  <g transform="translate(400, 140)">
+    <path d="M 0,-70 L 8,-8 L 70,0 L 8,8 L 0,70 L -8,8 L -70,0 L -8,-8 Z" fill="url(#starGrad)" filter="url(#neon-glow)"/>
+    <circle cx="0" cy="0" r="15" fill="#050508" />
+    <circle cx="0" cy="0" r="6" fill="#00f0ff" filter="url(#neon-glow)" />
+  </g>
+
+  <!-- متن NOVA -->
+  <text x="400" y="280" font-family="'Orbitron', 'Arial Black', sans-serif" font-size="70" font-weight="900" fill="url(#textGrad)" text-anchor="middle" letter-spacing="15" filter="url(#neon-glow)">NOVA</text>
+  
+  <!-- زیرنویس -->
+  <text x="400" y="330" font-family="'Orbitron', 'Arial', sans-serif" font-size="16" fill="#888888" text-anchor="middle" letter-spacing="10">NEON PIXEL GENESIS</text>
+</svg>
