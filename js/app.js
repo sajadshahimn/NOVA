@@ -1,59 +1,220 @@
 /* =============================================
-   NOVA - Neon Pixel Genesis (7 Modes)
+   NOVA - Ultimate Edition (Full JS Engine)
    ============================================= */
 
 (function () {
     'use strict';
 
+    // --- DOM Elements ---
     const fileInput = document.getElementById('file-upload');
     const startBtn = document.getElementById('start-btn');
+    const randomBtn = document.getElementById('random-btn');
+    const webcamBtn = document.getElementById('webcam-btn');
+    const webcamVideo = document.getElementById('webcam-video');
+    
+    const settingsSection = document.getElementById('settings-section');
+    const modeSelection = document.querySelectorAll('.mode-btn');
+    const speedSlider = document.getElementById('speed-slider');
+    const speedVal = document.getElementById('speed-val');
+    const autobgToggle = document.getElementById('autobg-toggle');
+    const crtToggle = document.getElementById('crt-toggle');
+    const crtOverlay = document.getElementById('crt-overlay');
+    
     const progressContainer = document.getElementById('progress-container');
     const progressFill = document.getElementById('progress-fill');
     const progressText = document.getElementById('progress-text');
     const canvasWrapper = document.getElementById('canvas-wrapper');
     const canvas = document.getElementById('draw-canvas');
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    const dropZone = document.getElementById('drop-zone');
-    const downloadLink = document.getElementById('download-link');
-    const modeSelection = document.getElementById('mode-selection');
+    const originalCanvas = document.getElementById('original-canvas');
+    const compareBtn = document.getElementById('compare-btn');
     const recPulse = document.getElementById('rec-pulse');
+    
+    const resultSection = document.getElementById('result-section');
+    const colorPalette = document.getElementById('color-palette');
+    const downloadVideo = document.getElementById('download-video');
+    const downloadPng = document.getElementById('download-png');
+    const shareCardBtn = document.getElementById('share-card-btn');
+    const gallerySection = document.getElementById('gallery-section');
+    const galleryGrid = document.getElementById('gallery-grid');
+    
+    const soundToggle = document.getElementById('sound-toggle');
+    const secretModeBtn = document.getElementById('secret-mode-btn');
 
+    // --- State ---
     let selectedImage = null;
     let currentMode = 'spectrum';
     let isAnimating = false;
+    let webcamStream = null;
+    let lastFrameTime = 0;
+    let vibrateTick = 0;
 
-    // --- انتخاب مود ---
-    document.querySelectorAll('.mode-btn').forEach(btn => {
+    // Check Secret Mode (Unlocked if user has played all 7 modes)
+    let playedModes = JSON.parse(localStorage.getItem('nova_played_modes') || '[]');
+    if (playedModes.length >= 7) {
+        secretModeBtn.style.display = 'flex';
+    }
+
+    // =============================================
+    // AUDIO ENGINE (Web Audio API)
+    // =============================================
+    let audioCtx = null, masterGain = null, ambientInterval = null, isMuted = false;
+
+    function initAudio() {
+        if (audioCtx) return;
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        masterGain = audioCtx.createGain();
+        masterGain.gain.value = isMuted ? 0 : 0.4;
+        masterGain.connect(audioCtx.destination);
+    }
+
+    function playSFX(type) {
+        if (!audioCtx || isMuted) return;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain); gain.connect(masterGain);
+        
+        if (type === 'click') {
+            osc.type = 'sine'; osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(300, audioCtx.currentTime + 0.1);
+            gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
+            osc.start(); osc.stop(audioCtx.currentTime + 0.1);
+        } else if (type === 'success') {
+            [440, 554, 659, 880].forEach((f, i) => {
+                const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
+                o.type = 'triangle'; o.frequency.value = f;
+                g.gain.setValueAtTime(0, audioCtx.currentTime + i * 0.1);
+                g.gain.linearRampToValueAtTime(0.2, audioCtx.currentTime + i * 0.1 + 0.05);
+                g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + i * 0.1 + 0.5);
+                o.connect(g); g.connect(masterGain);
+                o.start(audioCtx.currentTime + i * 0.1); o.stop(audioCtx.currentTime + i * 0.1 + 0.5);
+            });
+        } else if (type === 'laser') {
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(1200, audioCtx.currentTime);
+            osc.frequency.linearRampToValueAtTime(100, audioCtx.currentTime + 0.4);
+            gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+            gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.4);
+            osc.start(); osc.stop(audioCtx.currentTime + 0.4);
+        }
+    }
+
+    function startAmbientMusic() {
+        if (!audioCtx || isMuted || ambientInterval) return;
+        const notes = [220.00, 261.63, 293.66, 329.63, 392.00, 440.00];
+        let idx = 0;
+        
+        const droneOsc = audioCtx.createOscillator();
+        const droneGain = audioCtx.createGain();
+        droneOsc.type = 'sine'; droneOsc.frequency.value = 55; // Deep bass
+        droneGain.gain.value = 0.1;
+        droneOsc.connect(droneGain); droneGain.connect(masterGain);
+        droneOsc.start(); droneOsc.stop(audioCtx.currentTime + 300);
+
+        ambientInterval = setInterval(() => {
+            if (!audioCtx || isMuted) return;
+            const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
+            o.type = 'triangle'; o.frequency.value = notes[idx];
+            g.gain.setValueAtTime(0, audioCtx.currentTime);
+            g.gain.linearRampToValueAtTime(0.08, audioCtx.currentTime + 0.1);
+            g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.8);
+            o.connect(g); g.connect(masterGain);
+            o.start(); o.stop(audioCtx.currentTime + 0.8);
+            idx = (idx + 1) % notes.length;
+        }, 450);
+    }
+
+    function stopAmbientMusic() {
+        if (ambientInterval) { clearInterval(ambientInterval); ambientInterval = null; }
+    }
+
+    soundToggle.addEventListener('click', () => {
+        initAudio();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        isMuted = !isMuted;
+        masterGain.gain.value = isMuted ? 0 : 0.4;
+        soundToggle.innerText = isMuted ? '🔇' : '🔊';
+        soundToggle.style.color = isMuted ? '#555' : 'var(--neon-blue)';
+    });
+
+    // =============================================
+    // UI EVENTS
+    // =============================================
+    modeSelection.forEach(btn => {
         btn.addEventListener('click', () => {
-            document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+            modeSelection.forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
             currentMode = btn.dataset.mode;
+            playSFX('click');
         });
     });
 
-    // --- آپلود عکس ---
+    speedSlider.addEventListener('input', (e) => {
+        speedVal.innerText = e.target.value === '1' ? 'آهسته' : e.target.value === '2' ? 'عادی' : 'سریع';
+    });
+
+    randomBtn.addEventListener('click', () => {
+        const availableModes = Array.from(modeSelection).filter(b => b.style.display !== 'none' && !b.classList.contains('hidden-mode'));
+        const randomBtnEl = availableModes[Math.floor(Math.random() * availableModes.length)];
+        randomBtnEl.click();
+        startBtn.click();
+    });
+
+    crtToggle.addEventListener('change', (e) => {
+        crtOverlay.classList.toggle('active', e.target.checked);
+    });
+
+    compareBtn.addEventListener('click', () => {
+        originalCanvas.style.display = originalCanvas.style.display === 'block' ? 'none' : 'block';
+    });
+
+    // Webcam Logic
+    webcamBtn.addEventListener('click', async () => {
+        try {
+            webcamStream = await navigator.mediaDevices.getUserMedia({ video: true });
+            webcamVideo.srcObject = webcamStream;
+            webcamVideo.style.display = 'block';
+            webcamBtn.innerText = '📸 گرفتن عکس';
+            webcamBtn.onclick = () => {
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = webcamVideo.videoWidth;
+                tempCanvas.height = webcamVideo.videoHeight;
+                tempCanvas.getContext('2d').drawImage(webcamVideo, 0, 0);
+                
+                selectedImage = new Image();
+                selectedImage.onload = () => {
+                    webcamStream.getTracks().forEach(t => t.stop());
+                    webcamVideo.style.display = 'none';
+                    webcamBtn.innerText = '📷 استفاده از دوربین';
+                    webcamBtn.onclick = null;
+                    document.getElementById('upload-section').style.display = 'none';
+                    settingsSection.style.display = 'block';
+                };
+                selectedImage.src = tempCanvas.toDataURL('image/jpeg');
+            };
+        } catch (err) {
+            alert('دسترسی به دوربین امکان‌پذیر نیست.');
+        }
+    });
+
     fileInput.addEventListener('change', (e) => {
         if (e.target.files.length === 0) return;
-        const file = e.target.files[0];
-        if (!file.type.startsWith('image/')) {
-            alert('لطفاً فقط فایل تصویری انتخاب کنید.');
-            return;
-        }
         const reader = new FileReader();
         reader.onload = (event) => {
             selectedImage = new Image();
             selectedImage.onload = () => {
-                dropZone.style.display = 'none';
-                modeSelection.style.display = 'block';
-                startBtn.style.display = 'block';
+                document.getElementById('upload-section').style.display = 'none';
+                settingsSection.style.display = 'block';
             };
-            selectedImage.onerror = () => alert('خطا در بارگذاری تصویر.');
             selectedImage.src = event.target.result;
         };
-        reader.readAsDataURL(file);
+        reader.readAsDataURL(e.target.files[0]);
     });
 
-    // --- محاسبه Hue ---
+    // =============================================
+    // IMAGE PROCESSING & SORTING
+    // =============================================
     function getHue(r, g, b) {
         r /= 255; g /= 255; b /= 255;
         const max = Math.max(r, g, b), min = Math.min(r, g, b);
@@ -70,215 +231,99 @@
         return h * 360;
     }
 
-    // --- الگوریتم مرتب‌سازی ۷ مود ---
-    function sortPixels(pixels, mode, width, height) {
-        const cx = width / 2;
-        const cy = height / 2;
-
-        // فقط پیکسل‌های نیمه‌شفاف و پس‌زمینه‌ی تیره حذف می‌شن
-        const validPixels = pixels.filter(p => p.a > 128 && (p.r + p.g + p.b > 20));
-        const state = {};
-
+    function sortPixels(pixels, mode, w, h) {
+        const cx = w / 2, cy = h / 2;
+        const valid = pixels.filter(p => p.a > 128 && (p.r + p.g + p.b > 20));
+        
         switch (mode) {
             case 'spectrum':
-                validPixels.forEach(p => { p.hue = getHue(p.r, p.g, p.b); });
-                validPixels.sort((a, b) => {
+                valid.forEach(p => p.hue = getHue(p.r, p.g, p.b));
+                valid.sort((a, b) => {
                     if (Math.abs(a.hue - b.hue) < 10) return (a.r + a.g + a.b) - (b.r + b.g + b.b);
                     return a.hue - b.hue;
                 });
                 break;
-
             case 'thermal':
-                // دید حرارتی: گرم (قرمز) به سرد (آبی)
-                // فرمول: قرمز بیشتر = گرمتر
-                validPixels.sort((a, b) => {
-                    const tempA = (a.r * 2) - a.g - a.b;
-                    const tempB = (b.r * 2) - b.g - b.b;
-                    return tempB - tempA;
-                });
+                valid.sort((a, b) => ((b.r * 2) - b.g - b.b) - ((a.r * 2) - a.g - a.b));
                 break;
-
             case 'luminous':
-                // عمق نور: از تاریکی به روشنایی
-                validPixels.sort((a, b) => {
-                    const lumA = 0.299 * a.r + 0.587 * a.g + 0.114 * a.b;
-                    const lumB = 0.299 * b.r + 0.587 * b.g + 0.114 * b.b;
-                    return lumA - lumB;
-                });
+                valid.sort((a, b) => (0.299 * a.r + 0.587 * a.g + 0.114 * a.b) - (0.299 * b.r + 0.587 * b.g + 0.114 * b.b));
                 break;
-
             case 'clusters':
-                // خوشه‌های کیهانی: گروه‌بندی بر اساس رنگ (کوانتیزه کردن)
-                validPixels.sort((a, b) => {
-                    const ca = (a.r >> 5) * 64 + (a.g >> 5) * 8 + (b.b >> 5); // تقریب به 8 رنگ اصلی
+                valid.sort((a, b) => {
+                    const ca = (a.r >> 5) * 64 + (a.g >> 5) * 8 + (a.b >> 5);
                     const cb = (b.r >> 5) * 64 + (b.g >> 5) * 8 + (b.b >> 5);
-                    if (ca === cb) return Math.random() - 0.5;
-                    return ca - cb;
+                    return ca === cb ? Math.random() - 0.5 : ca - cb;
                 });
                 break;
-
             case 'rgbsplit':
-                // تفکیک کانال: اول قرمز، بعد سبز، بعد آبی
-                const reds = [], greens = [], blues = [];
-                validPixels.forEach(p => {
-                    if (p.r >= p.g && p.r >= p.b) reds.push(p);
-                    else if (p.g >= p.r && p.g >= p.b) greens.push(p);
-                    else blues.push(p);
+                const r = [], g = [], b = [];
+                valid.forEach(p => {
+                    if (p.r >= p.g && p.r >= p.b) r.push(p);
+                    else if (p.g >= p.r && p.g >= p.b) g.push(p);
+                    else b.push(p);
                 });
-                return { pixels: reds.concat(greens).concat(blues), state };
-
+                return r.concat(g).concat(b);
             case 'edgefill':
-                // از خط تا رنگ: اول لبه‌ها، بعد بقیه
-                const edges = [];
-                const fills = [];
-                // یک الگوریتم ساده برای تشخیص لبه (تفاوت با پیکسل بالا)
-                const getPixel = (x, y) => pixels[y * width + x];
-                validPixels.forEach(p => {
+                const edges = [], fills = [];
+                const getP = (x, y) => pixels[y * w + x];
+                valid.forEach(p => {
                     let isEdge = false;
-                    if (p.x > 0 && p.x < width - 1 && p.y > 0 && p.y < height - 1) {
-                        const top = getPixel(p.x, p.y - 1);
-                        const diff = Math.abs(p.r - top.r) + Math.abs(p.g - top.g) + Math.abs(p.b - top.b);
+                    if (p.x > 0 && p.x < w-1 && p.y > 0 && p.y < h-1) {
+                        const diff = Math.abs(p.r - getP(p.x, p.y-1).r) + Math.abs(p.g - getP(p.x, p.y-1).g) + Math.abs(p.b - getP(p.x, p.y-1).b);
                         if (diff > 100) isEdge = true;
                     }
-                    if (isEdge) edges.push(p);
-                    else fills.push(p);
+                    isEdge ? edges.push(p) : fills.push(p);
                 });
-                return { pixels: edges.concat(fills), state };
-
+                return edges.concat(fills);
             case 'radar':
-                // رادار رنگی: چرخش از مرکز (زاویه)
-                validPixels.sort((a, b) => {
-                    const angleA = Math.atan2(a.y - cy, a.x - cx);
-                    const angleB = Math.atan2(b.y - cy, b.x - cx);
-                    return angleA - angleB;
-                });
+                valid.sort((a, b) => Math.atan2(a.y - cy, a.x - cx) - Math.atan2(b.y - cy, b.x - cx));
+                break;
+            case 'secret': // Quantum Shuffle
+                valid.sort(() => Math.random() - 0.5);
                 break;
         }
-
-        return { pixels: validPixels, state };
+        return valid;
     }
 
-    // --- افکت‌های بصری مودها ---
-    function drawModeEffects(mode, state, batch, progress, w, h) {
-        if (batch.length === 0) return;
-        const last = batch[batch.length - 1];
-
-        switch (mode) {
-            case 'spectrum':
-                ctx.globalCompositeOperation = 'overlay';
-                ctx.fillStyle = `rgba(${last.r}, ${last.g}, ${last.b}, 0.15)`;
-                ctx.fillRect(0, 0, w, h);
-                ctx.globalCompositeOperation = 'lighter';
-                ctx.fillStyle = `rgba(${last.r}, ${last.g}, ${last.b}, 0.4)`;
-                ctx.beginPath();
-                for (const p of batch) ctx.rect(p.x - 1, p.y - 1, 3, 3);
-                ctx.fill();
-                ctx.globalCompositeOperation = 'source-over';
-                break;
-
-            case 'thermal':
-                // هاله نارنجی/قرمز داغ
-                ctx.globalCompositeOperation = 'lighter';
-                ctx.fillStyle = `rgba(255, 50, 0, 0.2)`;
-                ctx.beginPath();
-                for (const p of batch) ctx.rect(p.x - 1, p.y - 1, 2, 2);
-                ctx.fill();
-                ctx.globalCompositeOperation = 'source-over';
-                break;
-
-            case 'luminous':
-                // درخشش سفید روی پیکسل‌های روشن جدید
-                if (last.r + last.g + last.b > 400) {
-                    ctx.globalCompositeOperation = 'lighter';
-                    ctx.fillStyle = `rgba(255, 255, 255, 0.6)`;
-                    ctx.beginPath();
-                    for (const p of batch) ctx.rect(p.x - 1, p.y - 1, 3, 3);
-                    ctx.fill();
-                    ctx.globalCompositeOperation = 'source-over';
-                }
-                break;
-
-            case 'clusters':
-                // خطوط نازک سفید برای اتصال خوشه‌ها (حس کهکشانی)
-                if (state.lastClusterPoint) {
-                    ctx.strokeStyle = `rgba(255, 255, 255, 0.2)`;
-                    ctx.lineWidth = 0.5;
-                    ctx.beginPath();
-                    ctx.moveTo(state.lastClusterPoint.x, state.lastClusterPoint.y);
-                    ctx.lineTo(last.x, last.y);
-                    ctx.stroke();
-                }
-                state.lastClusterPoint = last;
-                break;
-
-            case 'rgbsplit':
-                // افکت گلیچ (خطوط افقی رنگی)
-                if (Math.random() > 0.9) {
-                    ctx.fillStyle = Math.random() > 0.5 ? 'rgba(255,0,0,0.3)' : 'rgba(0,240,255,0.3)';
-                    ctx.fillRect(0, Math.random() * h, w, Math.random() * 3);
-                }
-                break;
-
-            case 'edgefill':
-                // خطوط لبه رو با رنگ سفید درخشان می‌کشیم
-                if (progress < 0.4) { // 40% اول فقط خطوط
-                    ctx.fillStyle = `rgba(255, 255, 255, 0.8)`;
-                    for (const p of batch) {
-                        ctx.fillRect(p.x, p.y, 1, 1);
-                    }
-                }
-                break;
-
-            case 'radar':
-                // یک خط عقربه‌ای نورانی از مرکز
-                const cx = w / 2, cy = h / 2;
-                const angle = Math.atan2(last.y - cy, last.x - cx);
-                const radius = Math.hypot(w, h);
-                
-                ctx.globalCompositeOperation = 'lighter';
-                const grad = ctx.createLinearGradient(cx, cy, cx + Math.cos(angle) * radius, cy + Math.sin(angle) * radius);
-                grad.addColorStop(0, 'rgba(0, 240, 255, 0.8)');
-                grad.addColorStop(1, 'rgba(0, 240, 255, 0)');
-                
-                ctx.strokeStyle = grad;
-                ctx.lineWidth = 3;
-                ctx.beginPath();
-                ctx.moveTo(cx, cy);
-                ctx.lineTo(cx + Math.cos(angle) * radius, cy + Math.sin(angle) * radius);
-                ctx.stroke();
-                ctx.globalCompositeOperation = 'source-over';
-                break;
-        }
-    }
-
-    // --- شروع انیمیشن ---
+    // =============================================
+    // ANIMATION & LASER TAG
+    // =============================================
     startBtn.addEventListener('click', async () => {
         if (!selectedImage || isAnimating) return;
+        
+        initAudio();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        startAmbientMusic();
 
         isAnimating = true;
-        startBtn.style.display = 'none';
-        downloadLink.style.display = 'none';
+        settingsSection.style.display = 'none';
         progressContainer.style.display = 'block';
         canvasWrapper.style.display = 'block';
-        modeSelection.style.display = 'none';
-        progressFill.style.width = '0%';
-        progressText.innerText = 'در حال پردازش تصویر...';
+        resultSection.style.display = 'none';
+        recPulse.style.display = 'block';
 
-        let w = selectedImage.width;
-        let h = selectedImage.height;
+        // Save played mode
+        if (!playedModes.includes(currentMode)) {
+            playedModes.push(currentMode);
+            localStorage.setItem('nova_played_modes', JSON.stringify(playedModes));
+            if (playedModes.length >= 7) secretModeBtn.style.display = 'flex';
+        }
+
+        // Setup Canvas
+        let w = selectedImage.width, h = selectedImage.height;
         const maxSize = 600;
         if (w > maxSize || h > maxSize) {
             const ratio = Math.min(maxSize / w, maxSize / h);
-            w = Math.floor(w * ratio);
-            h = Math.floor(h * ratio);
+            w = Math.floor(w * ratio); h = Math.floor(h * ratio);
         }
-        canvas.width = w;
-        canvas.height = h;
+        canvas.width = w; canvas.height = h;
+        
+        originalCanvas.width = w; originalCanvas.height = h;
+        originalCanvas.getContext('2d').drawImage(selectedImage, 0, 0, w, h);
 
-        const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = w;
-        tempCanvas.height = h;
-        const tempCtx = tempCanvas.getContext('2d');
+        const tempCtx = document.createElement('canvas').getContext('2d');
+        tempCtx.canvas.width = w; tempCtx.canvas.height = h;
         tempCtx.drawImage(selectedImage, 0, 0, w, h);
         const imgData = tempCtx.getImageData(0, 0, w, h).data;
 
@@ -286,83 +331,121 @@
         for (let y = 0; y < h; y++) {
             for (let x = 0; x < w; x++) {
                 const i = (y * w + x) * 4;
-                pixels.push({ x, y, r: imgData[i], g: imgData[i+1], b: imgData[i+2], a: imgData[i+3] });
+                let r = imgData[i], g = imgData[i+1], b = imgData[i+2], a = imgData[i+3];
+                
+                // Auto-BG removal
+                if (autobgToggle.checked && (r + g + b < 60)) {
+                    a = 0; // Make transparent
+                }
+                pixels.push({ x, y, r, g, b, a });
             }
         }
 
-        progressText.innerText = 'در حال مرتب‌سازی مسیر پیکسل‌ها...';
+        progressText.innerText = 'در حال پردازش...';
         await new Promise(r => setTimeout(r, 100));
+        
+        const sorted = sortPixels(pixels, currentMode, w, h);
+        const total = sorted.length;
 
-        const { pixels: sortedPixels, state: modeState } = sortPixels(pixels, currentMode, w, h);
-        const totalPixels = sortedPixels.length;
-
+        // Setup ImageData
         const masterData = ctx.createImageData(w, h);
         const md = masterData.data;
-        for (let i = 0; i < md.length; i += 4) {
-            md[i] = 0; md[i+1] = 0; md[i+2] = 0; md[i+3] = 255;
-        }
+        for (let i = 0; i < md.length; i += 4) { md[i+3] = 255; } // Black bg
+        
+        ctx.fillStyle = '#000'; ctx.fillRect(0, 0, w, h);
 
-        ctx.fillStyle = '#000';
-        ctx.fillRect(0, 0, w, h);
+        // Speed Factor
+        const speedFactor = parseInt(speedSlider.value) * 100; 
+        const pixelsPerFrame = Math.max(1, Math.floor(total / speedFactor));
 
-        // تعداد پیکسل در هر فریم بر اساس مود
-        const speedFactor = {
-            spectrum: 200, thermal: 250, luminous: 200,
-            clusters: 300, rgbsplit: 350, edgefill: 250, radar: 250
-        }[currentMode] || 250;
-        const pixelsPerFrame = Math.max(1, Math.floor(totalPixels / speedFactor));
-
-        // ضبط ویدیو
+        // Recording Setup
         const stream = canvas.captureStream(30);
-        const recorder = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp9' });
+        const audioDest = audioCtx.createMediaStreamDestination();
+        masterGain.connect(audioDest);
+        const combinedStream = new MediaStream([...stream.getVideoTracks(), ...audioDest.stream.getAudioTracks()]);
+        
+        const recorder = new MediaRecorder(combinedStream, { mimeType: 'video/webm;codecs=vp9,opus' });
         const chunks = [];
         recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
-        recorder.onstop = () => {
+        
+        recorder.onstop = async () => {
             const blob = new Blob(chunks, { type: 'video/webm' });
-            const url = URL.createObjectURL(blob);
-            downloadLink.href = url;
-            downloadLink.style.display = 'block';
+            downloadVideo.href = URL.createObjectURL(blob);
+            
+            // PNG Export
+            downloadPng.href = canvas.toDataURL('image/png');
+            
+            // Palette Generation
+            generatePalette(sorted);
+            
+            // Gallery
+            saveToGallery(canvas.toDataURL('image/jpeg'));
+            
             progressText.innerText = 'شاهکار NOVA آماده است! 🎉';
             recPulse.style.display = 'none';
-            startBtn.innerText = 'خلق مجدد';
-            startBtn.style.display = 'block';
-            startBtn.disabled = false;
-            modeSelection.style.display = 'block';
+            resultSection.style.display = 'block';
+            settingsSection.style.display = 'block';
             isAnimating = false;
+            stopAmbientMusic();
+            playSFX('success');
         };
-
+        
         recorder.start();
-        recPulse.style.display = 'block';
 
         let currentIndex = 0;
+        const modeState = { lastPoint: null, clusterPoint: null };
 
         const drawLoop = () => {
-            if (currentIndex >= totalPixels) {
-                ctx.fillStyle = '#000';
-                ctx.fillRect(0, 0, w, h);
-                ctx.putImageData(masterData, 0, 0);
-                progressFill.style.width = '100%';
-                progressText.innerText = 'تکمیل شد!';
-                setTimeout(() => recorder.stop(), 1000);
+            if (currentIndex >= total) {
+                // Trigger Laser Tag
+                drawLaserTag(w, h, () => {
+                    setTimeout(() => recorder.stop(), 500);
+                });
                 return;
             }
 
-            const end = Math.min(currentIndex + pixelsPerFrame, totalPixels);
-            const batch = sortedPixels.slice(currentIndex, end);
+            const end = Math.min(currentIndex + pixelsPerFrame, total);
+            const batch = sorted.slice(currentIndex, end);
 
             for (const p of batch) {
                 const idx = (p.y * w + p.x) * 4;
-                md[idx] = p.r; md[idx+1] = p.g; md[idx+2] = p.b; md[idx+3] = 255;
+                md[idx] = p.r; md[idx+1] = p.g; md[idx+2] = p.b; md[idx+3] = p.a;
             }
 
             currentIndex = end;
-            const progress = currentIndex / totalPixels;
+            const progress = currentIndex / total;
 
-            ctx.fillStyle = '#000';
-            ctx.fillRect(0, 0, w, h);
+            // Draw base
+            ctx.fillStyle = '#000'; ctx.fillRect(0, 0, w, h);
             ctx.putImageData(masterData, 0, 0);
 
-            drawModeEffects(currentMode, modeState, batch, progress, w, h);
+            // Effects
+            const last = batch[batch.length - 1];
+            if (last) {
+                ctx.globalCompositeOperation = 'lighter';
+                if (currentMode === 'spectrum') {
+                    ctx.fillStyle = `rgba(${last.r}, ${last.g}, ${last.b}, 0.4)`;
+                    batch.forEach(p => ctx.fillRect(p.x-1, p.y-1, 3, 3));
+                } else if (currentMode === 'radar') {
+                    const cx = w/2, cy = h/2;
+                    const angle = Math.atan2(last.y - cy, last.x - cx);
+                    const grad = ctx.createLinearGradient(cx, cy, cx + Math.cos(angle)*w, cy + Math.sin(angle)*h);
+                    grad.addColorStop(0, 'rgba(0, 240, 255, 0.8)'); grad.addColorStop(1, 'rgba(0, 240, 255, 0)');
+                    ctx.strokeStyle = grad; ctx.lineWidth = 3;
+                    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(angle)*w, cy + Math.sin(angle)*h); ctx.stroke();
+                } else if (currentMode === 'clusters' && modeState.clusterPoint) {
+                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)'; ctx.lineWidth = 0.5;
+                    ctx.beginPath(); ctx.moveTo(modeState.clusterPoint.x, modeState.clusterPoint.y); ctx.lineTo(last.x, last.y); ctx.stroke();
+                }
+                ctx.globalCompositeOperation = 'source-over';
+                modeState.clusterPoint = last;
+            }
+
+            // Haptics
+            if (navigator.vibrate && currentIndex - vibrateTick > total/20) {
+                navigator.vibrate(10);
+                vibrateTick = currentIndex;
+            }
 
             const pct = Math.floor(progress * 100);
             progressFill.style.width = `${pct}%`;
@@ -373,5 +456,176 @@
 
         requestAnimationFrame(drawLoop);
     });
+
+    // --- Laser NOVA Tag ---
+    function drawLaserTag(w, h, onComplete) {
+        playSFX('laser');
+        progressText.innerText = 'حکاکی امضای NOVA...';
+        
+        const text = "NOVA";
+        ctx.font = "bold 40px Orbitron, sans-serif";
+        ctx.textAlign = "right";
+        ctx.textBaseline = "bottom";
+        
+        const textMetrics = ctx.measureText(text);
+        const textWidth = textMetrics.width;
+        const xPos = w - 20;
+        const yPos = h - 20;
+        
+        let laserX = xPos - textWidth;
+        const laserY = yPos - 20;
+
+        const animateLaser = () => {
+            // Redraw base image to clear previous laser frame
+            ctx.fillStyle = '#000'; ctx.fillRect(0, 0, w, h);
+            ctx.putImageData(ctx.getImageData(0, 0, w, h), 0, 0); // This is wrong, we need to restore the original canvas state. Let's use a separate overlay canvas for laser.
+            
+            // Actually, we can just draw the text up to the laser position
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(laserX, laserY - 40, xPos - laserX, 60);
+            ctx.clip();
+            
+            // Glow
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = '#00f0ff';
+            ctx.fillStyle = '#ffffff';
+            ctx.fillText(text, xPos, yPos);
+            ctx.restore();
+
+            // Draw Laser Dot
+            ctx.beginPath();
+            ctx.arc(laserX, laserY, 4, 0, Math.PI * 2);
+            ctx.fillStyle = '#fff';
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = '#00f0ff';
+            ctx.fill();
+            ctx.shadowBlur = 0;
+
+            laserX += 4; // Speed of laser
+            if (laserX < xPos) {
+                requestAnimationFrame(animateLaser);
+            } else {
+                // Final static logo with glow
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = '#00f0ff';
+                ctx.fillStyle = '#00f0ff';
+                ctx.fillText(text, xPos, yPos);
+                ctx.shadowBlur = 0;
+                setTimeout(onComplete, 500);
+            }
+        };
+        
+        // Need to capture the canvas state before laser starts to prevent clearing the image
+        const finalImage = ctx.getImageData(0, 0, w, h);
+        const animateLaserSafe = () => {
+            ctx.putImageData(finalImage, 0, 0);
+            
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(laserX, laserY - 40, xPos - laserX, 60);
+            ctx.clip();
+            ctx.font = "bold 40px Orbitron, sans-serif";
+            ctx.textAlign = "right";
+            ctx.textBaseline = "bottom";
+            ctx.shadowBlur = 20; ctx.shadowColor = '#00f0ff'; ctx.fillStyle = '#ffffff';
+            ctx.fillText(text, xPos, yPos);
+            ctx.restore();
+
+            ctx.beginPath();
+            ctx.arc(laserX, laserY, 4, 0, Math.PI * 2);
+            ctx.fillStyle = '#fff'; ctx.shadowBlur = 15; ctx.shadowColor = '#00f0ff'; ctx.fill();
+            ctx.shadowBlur = 0;
+
+            laserX += 4;
+            if (laserX < xPos) {
+                requestAnimationFrame(animateLaserSafe);
+            } else {
+                ctx.putImageData(finalImage, 0, 0);
+                ctx.shadowBlur = 10; ctx.shadowColor = '#00f0ff'; ctx.fillStyle = '#00f0ff';
+                ctx.font = "bold 40px Orbitron, sans-serif"; ctx.textAlign = "right"; ctx.textBaseline = "bottom";
+                ctx.fillText(text, xPos, yPos);
+                ctx.shadowBlur = 0;
+                setTimeout(onComplete, 500);
+            }
+        };
+        animateLaserSafe();
+    }
+
+    // --- Utilities ---
+    function generatePalette(pixels) {
+        colorPalette.innerHTML = '';
+        const step = Math.max(1, Math.floor(pixels.length / 5));
+        for (let i = 0; i < 5; i++) {
+            const p = pixels[i * step] || {r:0, g:0, b:0};
+            const swatch = document.createElement('div');
+            swatch.className = 'color-swatch';
+            swatch.style.backgroundColor = `rgb(${p.r}, ${p.g}, ${p.b})`;
+            colorPalette.appendChild(swatch);
+        }
+    }
+
+    function saveToGallery(dataUrl) {
+        let gallery = JSON.parse(localStorage.getItem('nova_gallery') || '[]');
+        gallery.unshift(dataUrl);
+        if (gallery.length > 10) gallery.pop(); // Keep last 10
+        localStorage.setItem('nova_gallery', JSON.stringify(gallery));
+        renderGallery();
+    }
+
+    function renderGallery() {
+        let gallery = JSON.parse(localStorage.getItem('nova_gallery') || '[]');
+        if (gallery.length === 0) return;
+        gallerySection.style.display = 'block';
+        galleryGrid.innerHTML = '';
+        gallery.forEach(imgUrl => {
+            const img = document.createElement('img');
+            img.src = imgUrl;
+            const div = document.createElement('div');
+            div.className = 'gallery-item';
+            div.appendChild(img);
+            galleryGrid.appendChild(div);
+        });
+    }
+
+    // Share Card
+    shareCardBtn.addEventListener('click', () => {
+        const cardCanvas = document.createElement('canvas');
+        cardCanvas.width = 1080; cardCanvas.height = 1920;
+        const cCtx = cardCanvas.getContext('2d');
+        
+        // Background
+        cCtx.fillStyle = '#050508'; cCtx.fillRect(0, 0, 1080, 1920);
+        
+        // Image
+        const imgW = 800, imgH = 800;
+        const imgX = (1080 - imgW) / 2;
+        const imgY = 400;
+        cCtx.drawImage(canvas, imgX, imgY, imgW, imgH);
+        
+        // Title
+        cCtx.font = 'bold 90px Orbitron, sans-serif';
+        cCtx.fillStyle = '#00f0ff'; cCtx.textAlign = 'center';
+        cCtx.fillText('NOVA', 540, 200);
+        cCtx.font = '40px Orbitron, sans-serif'; cCtx.fillStyle = '#fff';
+        cCtx.fillText('NEON PIXEL GENESIS', 540, 280);
+        
+        // Palette
+        let startX = 200;
+        Array.from(colorPalette.children).forEach(swatch => {
+            cCtx.beginPath(); cCtx.arc(startX, 1350, 40, 0, Math.PI*2);
+            cCtx.fillStyle = swatch.style.backgroundColor; cCtx.fill();
+            startX += 150;
+        });
+
+        // Download
+        const a = document.createElement('a');
+        a.href = cardCanvas.toDataURL('image/jpeg', 0.9);
+        a.download = 'nova-share-card.jpg';
+        a.click();
+    });
+
+    // Init
+    renderGallery();
 
 })();
