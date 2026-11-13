@@ -11,6 +11,7 @@
     const randomBtn = document.getElementById('random-btn');
     const webcamBtn = document.getElementById('webcam-btn');
     const webcamVideo = document.getElementById('webcam-video');
+    const langToggle = document.getElementById('lang-toggle');
     
     const settingsSection = document.getElementById('settings-section');
     const modeSelection = document.querySelectorAll('.mode-btn');
@@ -46,17 +47,43 @@
     let currentMode = 'spectrum';
     let isAnimating = false;
     let webcamStream = null;
-    let lastFrameTime = 0;
     let vibrateTick = 0;
+    let currentLang = localStorage.getItem('nova_lang') || 'fa';
 
-    // Check Secret Mode (Unlocked if user has played all 7 modes)
+    // Check Secret Mode
     let playedModes = JSON.parse(localStorage.getItem('nova_played_modes') || '[]');
-    if (playedModes.length >= 7) {
+    if (playedModes.length >= 8) {
         secretModeBtn.style.display = 'flex';
     }
 
     // =============================================
-    // AUDIO ENGINE (Web Audio API)
+    // LOCALIZATION (i18n)
+    // =============================================
+    function applyLanguage(lang) {
+        document.documentElement.lang = lang;
+        document.documentElement.dir = lang === 'fa' ? 'rtl' : 'ltr';
+        
+        document.querySelectorAll('[data-fa]').forEach(el => {
+            el.innerText = el.getAttribute(`data-${lang}`);
+        });
+
+        langToggle.innerText = lang === 'fa' ? '🌐 EN' : '🌐 FA';
+        localStorage.setItem('nova_lang', lang);
+        currentLang = lang;
+
+        // Update dynamic texts
+        if (!isAnimating) {
+            progressText.innerText = lang === 'fa' ? 'آماده‌سازی...' : 'Preparing...';
+            speedVal.innerText = speedSlider.value === '1' ? (lang==='fa'?'آهسته':'Slow') : speedSlider.value === '2' ? (lang==='fa'?'عادی':'Normal') : (lang==='fa'?'سریع':'Fast');
+        }
+    }
+
+    langToggle.addEventListener('click', () => {
+        applyLanguage(currentLang === 'fa' ? 'en' : 'fa');
+    });
+
+    // =============================================
+    // AUDIO ENGINE
     // =============================================
     let audioCtx = null, masterGain = null, ambientInterval = null, isMuted = false;
 
@@ -107,7 +134,7 @@
         
         const droneOsc = audioCtx.createOscillator();
         const droneGain = audioCtx.createGain();
-        droneOsc.type = 'sine'; droneOsc.frequency.value = 55; // Deep bass
+        droneOsc.type = 'sine'; droneOsc.frequency.value = 55;
         droneGain.gain.value = 0.1;
         droneOsc.connect(droneGain); droneGain.connect(masterGain);
         droneOsc.start(); droneOsc.stop(audioCtx.currentTime + 300);
@@ -151,7 +178,8 @@
     });
 
     speedSlider.addEventListener('input', (e) => {
-        speedVal.innerText = e.target.value === '1' ? 'آهسته' : e.target.value === '2' ? 'عادی' : 'سریع';
+        const val = e.target.value;
+        speedVal.innerText = val === '1' ? (currentLang==='fa'?'آهسته':'Slow') : val === '2' ? (currentLang==='fa'?'عادی':'Normal') : (currentLang==='fa'?'سریع':'Fast');
     });
 
     randomBtn.addEventListener('click', () => {
@@ -169,13 +197,14 @@
         originalCanvas.style.display = originalCanvas.style.display === 'block' ? 'none' : 'block';
     });
 
-    // Webcam Logic
+    // Webcam
     webcamBtn.addEventListener('click', async () => {
         try {
             webcamStream = await navigator.mediaDevices.getUserMedia({ video: true });
             webcamVideo.srcObject = webcamStream;
             webcamVideo.style.display = 'block';
-            webcamBtn.innerText = '📸 گرفتن عکس';
+            webcamBtn.innerText = currentLang==='fa' ? '📸 گرفتن عکس' : '📸 Capture';
+            
             webcamBtn.onclick = () => {
                 const tempCanvas = document.createElement('canvas');
                 tempCanvas.width = webcamVideo.videoWidth;
@@ -186,7 +215,7 @@
                 selectedImage.onload = () => {
                     webcamStream.getTracks().forEach(t => t.stop());
                     webcamVideo.style.display = 'none';
-                    webcamBtn.innerText = '📷 استفاده از دوربین';
+                    webcamBtn.innerText = currentLang==='fa' ? '📷 استفاده از دوربین' : '📷 Use Camera';
                     webcamBtn.onclick = null;
                     document.getElementById('upload-section').style.display = 'none';
                     settingsSection.style.display = 'block';
@@ -194,7 +223,7 @@
                 selectedImage.src = tempCanvas.toDataURL('image/jpeg');
             };
         } catch (err) {
-            alert('دسترسی به دوربین امکان‌پذیر نیست.');
+            alert('Camera access denied.');
         }
     });
 
@@ -282,6 +311,9 @@
             case 'secret': // Quantum Shuffle
                 valid.sort(() => Math.random() - 0.5);
                 break;
+            case 'matrix': // Matrix mode sorts randomly for a digital rain effect
+                valid.sort(() => Math.random() - 0.5);
+                break;
         }
         return valid;
     }
@@ -307,12 +339,16 @@
         if (!playedModes.includes(currentMode)) {
             playedModes.push(currentMode);
             localStorage.setItem('nova_played_modes', JSON.stringify(playedModes));
-            if (playedModes.length >= 7) secretModeBtn.style.display = 'flex';
+            if (playedModes.length >= 8) secretModeBtn.style.display = 'flex';
         }
 
         // Setup Canvas
         let w = selectedImage.width, h = selectedImage.height;
-        const maxSize = 600;
+        
+        // Responsive Optimization: Lower resolution on small screens
+        const isMobile = window.innerWidth < 600;
+        const maxSize = isMobile ? 400 : 600;
+        
         if (w > maxSize || h > maxSize) {
             const ratio = Math.min(maxSize / w, maxSize / h);
             w = Math.floor(w * ratio); h = Math.floor(h * ratio);
@@ -333,15 +369,14 @@
                 const i = (y * w + x) * 4;
                 let r = imgData[i], g = imgData[i+1], b = imgData[i+2], a = imgData[i+3];
                 
-                // Auto-BG removal
                 if (autobgToggle.checked && (r + g + b < 60)) {
-                    a = 0; // Make transparent
+                    a = 0;
                 }
                 pixels.push({ x, y, r, g, b, a });
             }
         }
 
-        progressText.innerText = 'در حال پردازش...';
+        progressText.innerText = currentLang==='fa' ? 'در حال پردازش...' : 'Processing...';
         await new Promise(r => setTimeout(r, 100));
         
         const sorted = sortPixels(pixels, currentMode, w, h);
@@ -350,11 +385,10 @@
         // Setup ImageData
         const masterData = ctx.createImageData(w, h);
         const md = masterData.data;
-        for (let i = 0; i < md.length; i += 4) { md[i+3] = 255; } // Black bg
+        for (let i = 0; i < md.length; i += 4) { md[i+3] = 255; }
         
         ctx.fillStyle = '#000'; ctx.fillRect(0, 0, w, h);
 
-        // Speed Factor
         const speedFactor = parseInt(speedSlider.value) * 100; 
         const pixelsPerFrame = Math.max(1, Math.floor(total / speedFactor));
 
@@ -364,24 +398,25 @@
         masterGain.connect(audioDest);
         const combinedStream = new MediaStream([...stream.getVideoTracks(), ...audioDest.stream.getAudioTracks()]);
         
-        const recorder = new MediaRecorder(combinedStream, { mimeType: 'video/webm;codecs=vp9,opus' });
+        let recorder;
+        try {
+            recorder = new MediaRecorder(combinedStream, { mimeType: 'video/webm;codecs=vp9,opus' });
+        } catch(e) {
+            recorder = new MediaRecorder(combinedStream); // Fallback
+        }
+        
         const chunks = [];
         recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
         
         recorder.onstop = async () => {
             const blob = new Blob(chunks, { type: 'video/webm' });
             downloadVideo.href = URL.createObjectURL(blob);
-            
-            // PNG Export
             downloadPng.href = canvas.toDataURL('image/png');
             
-            // Palette Generation
             generatePalette(sorted);
-            
-            // Gallery
             saveToGallery(canvas.toDataURL('image/jpeg'));
             
-            progressText.innerText = 'شاهکار NOVA آماده است! 🎉';
+            progressText.innerText = currentLang==='fa' ? 'شاهکار NOVA آماده است! 🎉' : 'NOVA masterpiece is ready! 🎉';
             recPulse.style.display = 'none';
             resultSection.style.display = 'block';
             settingsSection.style.display = 'block';
@@ -393,11 +428,10 @@
         recorder.start();
 
         let currentIndex = 0;
-        const modeState = { lastPoint: null, clusterPoint: null };
+        let modeState = { lastPoint: null, clusterPoint: null };
 
         const drawLoop = () => {
             if (currentIndex >= total) {
-                // Trigger Laser Tag
                 drawLaserTag(w, h, () => {
                     setTimeout(() => recorder.stop(), 500);
                 });
@@ -407,21 +441,33 @@
             const end = Math.min(currentIndex + pixelsPerFrame, total);
             const batch = sorted.slice(currentIndex, end);
 
-            for (const p of batch) {
-                const idx = (p.y * w + p.x) * 4;
-                md[idx] = p.r; md[idx+1] = p.g; md[idx+2] = p.b; md[idx+3] = p.a;
+            if (currentMode === 'matrix') {
+                // Matrix Mode: Draw text instead of pixels
+                ctx.font = '10px monospace';
+                for (const p of batch) {
+                    const brightness = (p.r + p.g + p.b) / 3;
+                    if (brightness > 50) {
+                        ctx.fillStyle = brightness > 150 ? '#00f0ff' : '#008f00'; // Cyan / Green
+                        const char = brightness > 150 ? '1' : '0';
+                        ctx.fillText(char, p.x, p.y);
+                    }
+                }
+            } else {
+                // Normal ImageData drawing
+                for (const p of batch) {
+                    const idx = (p.y * w + p.x) * 4;
+                    md[idx] = p.r; md[idx+1] = p.g; md[idx+2] = p.b; md[idx+3] = p.a;
+                }
+                ctx.fillStyle = '#000'; ctx.fillRect(0, 0, w, h);
+                ctx.putImageData(masterData, 0, 0);
             }
 
             currentIndex = end;
             const progress = currentIndex / total;
 
-            // Draw base
-            ctx.fillStyle = '#000'; ctx.fillRect(0, 0, w, h);
-            ctx.putImageData(masterData, 0, 0);
-
             // Effects
             const last = batch[batch.length - 1];
-            if (last) {
+            if (last && currentMode !== 'matrix') {
                 ctx.globalCompositeOperation = 'lighter';
                 if (currentMode === 'spectrum') {
                     ctx.fillStyle = `rgba(${last.r}, ${last.g}, ${last.b}, 0.4)`;
@@ -449,7 +495,7 @@
 
             const pct = Math.floor(progress * 100);
             progressFill.style.width = `${pct}%`;
-            progressText.innerText = `در حال خلق تصویر... ${pct}%`;
+            progressText.innerText = currentLang==='fa' ? `در حال خلق تصویر... ${pct}%` : `Creating... ${pct}%`;
 
             requestAnimationFrame(drawLoop);
         };
@@ -460,15 +506,16 @@
     // --- Laser NOVA Tag ---
     function drawLaserTag(w, h, onComplete) {
         playSFX('laser');
-        progressText.innerText = 'حکاکی امضای NOVA...';
+        progressText.innerText = currentLang==='fa' ? 'حکاکی امضای NOVA...' : 'Engraving NOVA signature...';
         
         const text = "NOVA";
+        const finalImage = ctx.getImageData(0, 0, w, h);
+        
         ctx.font = "bold 40px Orbitron, sans-serif";
         ctx.textAlign = "right";
         ctx.textBaseline = "bottom";
         
-        const textMetrics = ctx.measureText(text);
-        const textWidth = textMetrics.width;
+        const textWidth = ctx.measureText(text).width;
         const xPos = w - 20;
         const yPos = h - 20;
         
@@ -476,49 +523,6 @@
         const laserY = yPos - 20;
 
         const animateLaser = () => {
-            // Redraw base image to clear previous laser frame
-            ctx.fillStyle = '#000'; ctx.fillRect(0, 0, w, h);
-            ctx.putImageData(ctx.getImageData(0, 0, w, h), 0, 0); // This is wrong, we need to restore the original canvas state. Let's use a separate overlay canvas for laser.
-            
-            // Actually, we can just draw the text up to the laser position
-            ctx.save();
-            ctx.beginPath();
-            ctx.rect(laserX, laserY - 40, xPos - laserX, 60);
-            ctx.clip();
-            
-            // Glow
-            ctx.shadowBlur = 20;
-            ctx.shadowColor = '#00f0ff';
-            ctx.fillStyle = '#ffffff';
-            ctx.fillText(text, xPos, yPos);
-            ctx.restore();
-
-            // Draw Laser Dot
-            ctx.beginPath();
-            ctx.arc(laserX, laserY, 4, 0, Math.PI * 2);
-            ctx.fillStyle = '#fff';
-            ctx.shadowBlur = 15;
-            ctx.shadowColor = '#00f0ff';
-            ctx.fill();
-            ctx.shadowBlur = 0;
-
-            laserX += 4; // Speed of laser
-            if (laserX < xPos) {
-                requestAnimationFrame(animateLaser);
-            } else {
-                // Final static logo with glow
-                ctx.shadowBlur = 10;
-                ctx.shadowColor = '#00f0ff';
-                ctx.fillStyle = '#00f0ff';
-                ctx.fillText(text, xPos, yPos);
-                ctx.shadowBlur = 0;
-                setTimeout(onComplete, 500);
-            }
-        };
-        
-        // Need to capture the canvas state before laser starts to prevent clearing the image
-        const finalImage = ctx.getImageData(0, 0, w, h);
-        const animateLaserSafe = () => {
             ctx.putImageData(finalImage, 0, 0);
             
             ctx.save();
@@ -539,7 +543,7 @@
 
             laserX += 4;
             if (laserX < xPos) {
-                requestAnimationFrame(animateLaserSafe);
+                requestAnimationFrame(animateLaser);
             } else {
                 ctx.putImageData(finalImage, 0, 0);
                 ctx.shadowBlur = 10; ctx.shadowColor = '#00f0ff'; ctx.fillStyle = '#00f0ff';
@@ -549,7 +553,7 @@
                 setTimeout(onComplete, 500);
             }
         };
-        animateLaserSafe();
+        animateLaser();
     }
 
     // --- Utilities ---
@@ -568,7 +572,7 @@
     function saveToGallery(dataUrl) {
         let gallery = JSON.parse(localStorage.getItem('nova_gallery') || '[]');
         gallery.unshift(dataUrl);
-        if (gallery.length > 10) gallery.pop(); // Keep last 10
+        if (gallery.length > 10) gallery.pop();
         localStorage.setItem('nova_gallery', JSON.stringify(gallery));
         renderGallery();
     }
@@ -594,23 +598,19 @@
         cardCanvas.width = 1080; cardCanvas.height = 1920;
         const cCtx = cardCanvas.getContext('2d');
         
-        // Background
         cCtx.fillStyle = '#050508'; cCtx.fillRect(0, 0, 1080, 1920);
         
-        // Image
         const imgW = 800, imgH = 800;
         const imgX = (1080 - imgW) / 2;
         const imgY = 400;
         cCtx.drawImage(canvas, imgX, imgY, imgW, imgH);
         
-        // Title
         cCtx.font = 'bold 90px Orbitron, sans-serif';
         cCtx.fillStyle = '#00f0ff'; cCtx.textAlign = 'center';
         cCtx.fillText('NOVA', 540, 200);
         cCtx.font = '40px Orbitron, sans-serif'; cCtx.fillStyle = '#fff';
         cCtx.fillText('NEON PIXEL GENESIS', 540, 280);
         
-        // Palette
         let startX = 200;
         Array.from(colorPalette.children).forEach(swatch => {
             cCtx.beginPath(); cCtx.arc(startX, 1350, 40, 0, Math.PI*2);
@@ -618,7 +618,6 @@
             startX += 150;
         });
 
-        // Download
         const a = document.createElement('a');
         a.href = cardCanvas.toDataURL('image/jpeg', 0.9);
         a.download = 'nova-share-card.jpg';
@@ -626,6 +625,7 @@
     });
 
     // Init
+    applyLanguage(currentLang);
     renderGallery();
 
 })();
